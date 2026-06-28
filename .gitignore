@@ -1,0 +1,16 @@
+# secrets
+.env
+
+# python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+
+# local scratch
+_pdf_pages/
+
+# NOTE: data/iv_history.sqlite is intentionally NOT ignored.
+# The IV-history store IS the database and lives in the repo (spec 11.2).

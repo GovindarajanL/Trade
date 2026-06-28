@@ -1,0 +1,56 @@
+name: OptionRadar evening scan
+
+# Runs just after the US close (~4:30 PM ET), produces the signal for next-session
+# entry, updates the IV-history store, and sends the Telegram card.
+#
+# GitHub cron is UTC and ignores US DST, so we schedule BOTH offsets; the
+# time-window guard in scripts/run_daily.py (optionradar/market.py) makes sure
+# exactly one firing per day does the work.
+on:
+  schedule:
+    - cron: "30 20 * * 1-5"   # 4:30 PM EDT (summer)  = 20:30 UTC
+    - cron: "30 21 * * 1-5"   # 4:30 PM EST (winter)  = 21:30 UTC
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Run regardless of the time-window guard"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write          # commit the updated IV-history store
+
+concurrency:
+  group: optionradar-evening
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Evening scan
+        env:
+          SCHWAB_CLIENT_ID: ${{ secrets.SCHWAB_CLIENT_ID }}
+          SCHWAB_CLIENT_SECRET: ${{ secrets.SCHWAB_CLIENT_SECRET }}
+          SCHWAB_REFRESH_TOKEN: ${{ secrets.SCHWAB_REFRESH_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python -m scripts.run_daily ${{ (github.event_name == 'workflow_dispatch' && inputs.force) && '--force' || '' }}
+
+      - name: Commit updated IV-history store
+        run: |
+          git config user.name  "optionradar-bot"
+          git config user.email "optionradar-bot@users.noreply.github.com"
+          git add data/iv_history.sqlite
+          if git diff --cached --quiet; then
+            echo "No store changes to commit."
+          else
+            git commit -m "chore: evening scan store update ($(date -u +%F))"
+            git push
+          fi

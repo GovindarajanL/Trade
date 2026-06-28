@@ -1,0 +1,6 @@
+# OptionRadar has no third-party runtime dependencies: indicators are pure
+# Python, the IV store is stdlib sqlite3, and HTTP uses urllib. This keeps the
+# GitHub Action fast and the "database is just the repo" promise honest.
+#
+# Dev / test only:
+pytest>=7.0

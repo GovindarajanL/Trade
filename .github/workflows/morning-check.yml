@@ -1,0 +1,44 @@
+name: OptionRadar morning entry-check
+
+# Runs just after the US open (~9:45 ET), when options are trading. Re-validates
+# the previous evening's signal against the LIVE chain (gap check, gates, fresh
+# strike + cost) and sends an entry card. Read-only: no commit.
+#
+# Both DST offsets are scheduled; the time-window guard in
+# scripts/morning_check.py runs the work exactly once per day.
+on:
+  schedule:
+    - cron: "45 13 * * 1-5"   # 9:45 AM EDT (summer)  = 13:45 UTC
+    - cron: "45 14 * * 1-5"   # 9:45 AM EST (winter)  = 14:45 UTC
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Run regardless of the time-window guard"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: optionradar-morning
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4    # brings in the committed signal + IV store
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Morning entry check
+        env:
+          SCHWAB_CLIENT_ID: ${{ secrets.SCHWAB_CLIENT_ID }}
+          SCHWAB_CLIENT_SECRET: ${{ secrets.SCHWAB_CLIENT_SECRET }}
+          SCHWAB_REFRESH_TOKEN: ${{ secrets.SCHWAB_REFRESH_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python -m scripts.morning_check ${{ (github.event_name == 'workflow_dispatch' && inputs.force) && '--force' || '' }}
